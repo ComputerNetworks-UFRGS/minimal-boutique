@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collector-config
+  namespace: rmalves
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4321
+    processors:
+      tail_sampling:
+        decision_wait: 30s
+        num_traces: 15000
+        expected_new_traces_per_sec: 750
+        policies:
+          - name: policy_ottl_condition
+            type: ottl_condition 
+            ottl_condition:
+              span:
+                - 'attributes["total"] > 1'
+    exporters:
+      debug:
+        verbosity: detailed
+      otlphttp:
+        endpoint: http://jaeger:4318
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [tail_sampling]
+          exporters: [otlphttp]
+        metrics:
+          receivers: [otlp]
+          exporters: [prometheus] 
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector
+  namespace: rmalves
+  labels:
+    app: collector
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        
+      maxUnavailable: 0  
+  selector:
+    matchLabels:
+      app: collector
+  template:
+    metadata:
+      labels:
+        app: collector
+      annotations:
+
+        config-hash: "initial"
+    spec:
+      nodeName: petshopboys
+      containers:
+        - name: collector-container
+          image: otel/opentelemetry-collector-contrib:latest
+          args: ["--config=/etc/otel/config.yaml"]
+          ports:
+            - containerPort: 4321
+            - containerPort: 9464
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/otel/
+      volumes:
+        - name: config-volume
+          configMap:
+            name: collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector
+  namespace: rmalves
+spec:
+  selector:
+    app: collector
+  ports:
+    - protocol: TCP
+      port: 4321
+      targetPort: 4321
+      name: otlp-http
+    - protocol: TCP
+      port: 9464
+      targetPort: 9464
+      name: scrape

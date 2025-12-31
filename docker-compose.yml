@@ -1,0 +1,96 @@
+version: '3'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: backend/Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - products
+      - checkout
+      - orders
+ 
+
+  products:
+    build:
+      context: ./backend
+      dockerfile: products/Dockerfile
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./backend/products:/app
+      - products_db:/app/instance
+ 
+
+  orders:
+    build:
+      context: ./backend
+      dockerfile: orders/Dockerfile
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./backend/orders:/app
+      - orders_db:/app/instance
+    depends_on:
+      - products
+ 
+
+  checkout:
+    build:
+      context: ./backend
+      dockerfile: checkout/Dockerfile
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./backend/checkout:/app
+    depends_on:
+      - products
+      - orders
+ 
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+    depends_on:
+      - backend
+ 
+
+  payment:
+    build:
+      context: ./backend
+      dockerfile: payment/Dockerfile
+    ports:
+      - "5004:5004"
+    volumes:
+      - ./backend/payment:/app
+    depends_on:
+      - orders
+ 
+
+  cart:
+    build:
+      context: ./backend
+      dockerfile: cart/Dockerfile
+    ports:
+      - "5005:5005"
+    volumes:
+      - ./backend/cart:/app
+      - cart_db:/app/instance
+    depends_on:
+      - products
+ 
+volumes:
+  products_db:
+  orders_db:
+  cart_db:

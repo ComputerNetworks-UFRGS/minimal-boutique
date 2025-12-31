@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: rmalves
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      # nodeName: petshopboys
+      containers:
+        - name: frontend
+          image: momosuke07/frontend:latest
+          ports:
+            - containerPort: 5173
+          command: ["npm", "run", "dev", "--", "--host"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: rmalves
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 5173
+      targetPort: 5173
+  type: ClusterIP

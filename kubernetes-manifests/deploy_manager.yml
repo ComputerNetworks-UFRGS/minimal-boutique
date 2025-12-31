@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-manager
+  namespace: rmalves
+  labels:
+    app: collector-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collector-manager
+  template:
+    metadata:
+      labels:
+        app: collector-manager
+    spec:
+      # nodeName: petshopboys
+      serviceAccountName: default
+      containers:
+        - name: manager
+          image: momosuke07/collector_manager:latest
+          env:
+            - name: NAMESPACE 
+              value: "rmalves"
+            - name: DEPLOYMENT_NAME
+              value: "collector"
+            - name: CONFIGMAP_NAME
+              value: "collector-config"

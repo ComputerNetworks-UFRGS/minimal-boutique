@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart 
+  namespace: rmalves 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cart 
+  template:
+    metadata:
+      labels:
+        app: cart 
+    spec:
+      nodeName: petshopboys
+      containers:
+        - name: cart
+          image: momosuke07/cart:latest 
+          ports:
+            - containerPort: 5005
+          env:
+            - name: DATABASE_URL
+              value: postgresql://postgres:postgres@localhost:5432/meubanco
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_DB
+              value: meubanco
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+
+      volumes:
+        - name: postgres-data
+          emptyDir: {}   # dados não persistem, perfeito para testes/dev
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart
+  namespace: rmalves
+spec:
+  selector:
+    app: cart
+  ports:
+    - protocol: TCP
+      port: 5005
+      targetPort: 5005
+  type: ClusterIP

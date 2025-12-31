@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: rmalves
+  labels:
+    app: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      nodeName: petshopboys
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:latest
+          ports:
+            - containerPort: 4318
+            - containerPort: 16686
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "1"
+            - name: SPAN_STORAGE_TYPE
+              value: "elasticsearch"
+            - name: ES_SERVER_URLS
+              value: "http://elasticsearch:9200"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: rmalves
+spec:
+  selector:
+    app: jaeger
+  ports:
+    - name: otlp
+      port: 4318
+      targetPort: 4318
+    - name: ui
+      port: 16686
+      targetPort: 16686

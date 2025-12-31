@@ -1,0 +1,14 @@
+flask
+flask_sqlalchemy
+flask_cors
+requests
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-flask
+opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-sqlalchemy
+grpcio
+grpcio-tools
+protobuf
+psycopg2-binary

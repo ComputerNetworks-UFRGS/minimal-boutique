@@ -1,0 +1,41 @@
+# expose-services-loadbalancer.yml
+
+# --- Serviço LoadBalancer para expor a UI do Jaeger ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-external
+  namespace: rmalves
+spec:
+  # O tipo LoadBalancer expõe o serviço externamente usando o balanceador de carga do provedor de nuvem.
+  # Em clusters locais, ele pode ser exposto via 'minikube tunnel' ou similar.
+  type: LoadBalancer
+  selector:
+    # Este seletor corresponde aos labels do seu deployment do Jaeger.
+    app: jaeger
+  ports:
+    - name: ui-port
+      protocol: TCP
+      # Porta que o LoadBalancer irá expor
+      port: 16686
+      # Porta do container do Jaeger onde a UI está rodando
+      targetPort: 16686
+---
+# --- Serviço LoadBalancer para expor o Frontend ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-external
+  namespace: rmalves
+spec:
+  type: LoadBalancer
+  selector:
+    # Este seletor corresponde aos labels do seu deployment do Frontend.
+    app: frontend
+  ports:
+    - name: http-frontend
+      protocol: TCP
+      # Porta que o LoadBalancer irá expor
+      port: 5173
+      # Porta do container do Frontend
+      targetPort: 5173

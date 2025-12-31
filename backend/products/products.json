@@ -1,0 +1,31 @@
+[
+    {
+        "name": "Tênis Esportivo", 
+        "price": 199.90, 
+        "description": "Tênis para corrida", 
+        "image_url": "https://upload.wikimedia.org/wikipedia/en/7/7b/Addison_Rae_-_Addison.png",
+        "stock": 100000
+    },
+    {
+        "name": "Camiseta DryFit", 
+        "price": 89.90, 
+        "description": "Ideal para esportes", 
+        "image_url": "https://upload.wikimedia.org/wikipedia/en/7/7b/Addison_Rae_-_Addison.png",
+        "stock": 20000000
+    },
+    {
+        "name": "Relógio de Corrida", 
+        "price": 90.92, 
+        "description": "Ideal para esportes", 
+        "image_url": "https://upload.wikimedia.org/wikipedia/en/7/7b/Addison_Rae_-_Addison.png",
+        "stock": 200000000
+
+    },
+    {
+        "name": "Whey Protein 500g", 
+        "price": 25.12, 
+        "description": "Dieta e nutrição", 
+        "image_url": "https://upload.wikimedia.org/wikipedia/en/7/7b/Addison_Rae_-_Addison.png",
+        "stock": 50000000
+    }
+]
