@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: manager-role
-  namespace: rmalves
+  namespace: minimal-boutique
 rules:
   - apiGroups: [""]
     resources: ["configmaps"]
@@ -18,11 +18,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: manager-rolebinding
-  namespace: rmalves
+  namespace: minimal-boutique
 subjects:
   - kind: ServiceAccount
     name: default   
-    namespace: rmalves
+    namespace: minimal-boutique
 roleRef:
   kind: Role
   name: manager-role

@@ -6,26 +6,13 @@ from opentelemetry import trace
 tracer = trace.get_tracer(__name__)
 
 
-
-
 products_bp = Blueprint('products', __name__, url_prefix = '/products')
 #Rotas de dados de produtos
-
-# ===============================================================
-# GET PRODUCTS
-# ===============================================================
 @products_bp.route('/', methods=['GET'])
 def list_products():
-
-    # Configura o tracing
     span = trace.get_current_span()
-
-    # Consulta todos os produtos que ainda tem itens no stock
     products = Product.query.filter(Product.stock>0).all()
-
-    # Salva número de itens no span
     span.set_attribute("number.of.products", len(products))
-    # Retorna todos os itens disponíveis para compra no catálogo
     return jsonify([{
         "id": p.id,
         "name": p.name,
@@ -35,24 +22,13 @@ def list_products():
         "stock": p.stock
         } for p in products])
 
-# ===============================================================
-# GET A SPECIFIC PRODUCT
-# ===============================================================
 @products_bp.route('/<int:product_id>', methods=['GET'])
 def get_product(product_id):
-
-    #Configura tracing
     span = trace.get_current_span()
-    # Busca produto no banco de dados
     product = Product.query.get(product_id)
-    # Se não encontra retorna mensagem de erro
     if product is None:
         return jsonify({'error': 'Produto não encontrado'}), 404
-    
-    # Salva id do produto pesquisado no span
     span.set_attribute("product.id", product.id)
-
-    # Retorna dados do produto
     return jsonify({
         "id": product.id,
         "name": product.name,
@@ -62,9 +38,7 @@ def get_product(product_id):
         "stock": product.stock
     })
 
-# ===============================================================
-# DELETE A SPECIFIC PRODUCT
-# ===============================================================
+#Rotas para excluir e adicionar diretamente
 @products_bp.route('/<int:product_id>', methods=['DELETE'])
 def delete_product(product_id):
     span = trace.get_current_span()
@@ -76,10 +50,6 @@ def delete_product(product_id):
     db.session.commit()
     return jsonify({'message':'Producto removido com sucesso'}), 200
 
-
-# ===============================================================
-# CREATE A SPECIFIC PRODUCT IN THE DATABASE
-# ===============================================================
 @products_bp.route('/', methods=['POST'])
 def add_product():
     data = request.json
@@ -94,9 +64,7 @@ def add_product():
     db.session.commit()
     return jsonify({"id": product.id}), 201
 
-# ===============================================================
-# RESERVE A SPECIFIC PRODUCT
-# ===============================================================
+#Rotas para reserva e liberação de produto
 
 @products_bp.route('/<int:product_id>/reserve', methods=['POST'])
 def reserve_stock(product_id):
@@ -119,9 +87,6 @@ def reserve_stock(product_id):
         db.session.commit()
         # return jsonify({"error": "Estoque insuficiente"}), 409
 
-# ===============================================================
-# RELEASE A SPECIFIC PRODUCT
-# ===============================================================
 
 @products_bp.route('/<int:product_id>/release', methods=['POST'])
 def release_stock(product_id):
@@ -141,9 +106,6 @@ def release_stock(product_id):
     return jsonify({"message": "Estoque liberado com sucesso", "new_stock": product.stock}), 200
 
 
-# ===============================================================
-# GET A PRODUCTS IN BATCH
-# ===============================================================
 @products_bp.route('/batch', methods=['POST'])
 def get_products_batch():
     span=trace.get_current_span()

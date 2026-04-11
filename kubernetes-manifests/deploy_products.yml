@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: products
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   replicas: 3
   selector:
@@ -13,7 +13,7 @@ spec:
       labels:
         app: products
     spec:
-      nodeName: petshopboys
+      # nodeName: petshopboys
       containers:
         - name: products    # <-- nome do container
           image: momosuke07/products:latest
@@ -48,7 +48,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: products
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: products

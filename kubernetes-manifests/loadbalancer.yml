@@ -5,7 +5,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: jaeger-external
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   # O tipo LoadBalancer expõe o serviço externamente usando o balanceador de carga do provedor de nuvem.
   # Em clusters locais, ele pode ser exposto via 'minikube tunnel' ou similar.
@@ -26,7 +26,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend-external
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   type: LoadBalancer
   selector:

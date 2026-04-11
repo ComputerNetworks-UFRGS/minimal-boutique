@@ -10,47 +10,34 @@ checkout_bp = Blueprint('checkout', __name__, url_prefix='/checkout')
 PRODUCTS_API_URL = "http://products:5001/products/"
 ORDERS_API_URL = "http://orders:5002/orders/"
 
-
-
-# ===============================================================
-# CHECKOUT
-# ===============================================================
 @checkout_bp.route('/', methods=['POST'])
 def process_checkout():
-
     data = request.json
     user_id = data.get('user_id')
     cart_items = data.get('cart_items')
 
-    # Validação da existência do usuário e do carrinho 
     if not user_id or not cart_items:
         return jsonify({"error": "Dados do usuário ou do carrinho ausentes"}), 400
 
-    # Configuração do trace e registro do user id no span
     span = trace.get_current_span()
     span.set_attribute("user.id", user_id)
 
-    # Variáveis de apoio
     total = 0
     order_items_payload = []
 
-    # Validar produtos e calcular o total
+    # 1. Validar produtos e calcular o total
     for item in cart_items:
         try:
-            # Busca o produto no serviço de estoque
             product_response = requests.get(f"{PRODUCTS_API_URL}{item['product_id']}")
             if product_response.status_code != 200:
                 return jsonify({"error": f"Produto com ID {item['product_id']} não encontrado"}), 404
-            # Calcula o valor total para aquele item baseado na quantidade de produtos e o preço de cada um
             product_data = product_response.json()
             price = product_data.get('price')
             total += price * item['quantity']
 
-            # Registra a o preço e a quantidade do item no span
             span.set_attribute(f"product.{item['product_id']}.price:", price)
             span.set_attribute(f"product.{item['product_id']}.quantity", item['quantity'])
 
-            # 
             order_items_payload.append({
                 "product_id": item['product_id'], "quantity": item['quantity'], "price": price
             })

@@ -1,0 +1,50 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4321
+        
+
+processors:
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 2000
+    expected_new_traces_per_sec: 100
+    policies:
+      [
+        {
+          name: errors-policy,
+          type: status_code,
+          status_code: { status_codes: [ERROR] },
+        },
+        {
+          name: latency-policy,
+          type: latency,
+          latency: { threshold_ms: 1},
+        },
+        {
+          name: probability-policy,
+          type: probabilistic,
+          probabilistic: { sampling_percentage: 100.0 },
+        }
+      ]
+
+    
+    
+exporters:
+  debug:
+    verbosity: detailed
+  otlphttp:
+    endpoint: http://jaeger:4318
+  prometheus:
+    endpoint: "collector:9464"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [tail_sampling]
+      exporters: [otlphttp]
+    metrics: 
+      receivers: [otlp]
+      exporters: [prometheus]

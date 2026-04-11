@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   replicas: 1
   selector:
@@ -13,7 +13,7 @@ spec:
       labels:
         app: backend
     spec:
-      nodeName: petshopboys
+      # nodeName: petshopboys
       containers:
         
         # Container da aplicação Flask
@@ -51,7 +51,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: backend

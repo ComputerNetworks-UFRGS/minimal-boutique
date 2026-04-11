@@ -1,0 +1,316 @@
+\section{Implementação do Minimalboutique}
+Esta seção mostra o detalhamento técnica da implementação do protótipo \textbf{Minimalboutique}. Abaixo descreve-se o panorama geral das tecnologias estruturantes: o framework web, a camada de persistência e a instrumentação de observabilidade.
+
+
+A espinha dorsal de todos os microsserviços do \textit{MinimalBoutique} é o Flask, um microframework web escrito em \textbf{Python}. Diferente de \textit{frameworks full-stack} (como Django), o Flask não impõe uma estrutura rígida de diretórios ou ferramentas, permitindo a criação de serviços leves e modulares, ideais para arquiteturas de microsserviços onde cada componente deve ter apenas as dependências necessárias para sua função específica.
+No contexto deste trabalho, o Flask desempenha o papel de \textbf{\textit{Servidor de Aplicação WSGI}}, responsável por:
+\begin{enumerate}
+    \item Escutar requisições HTTP (entradas).
+    \item Roteá-las para as funções controladoras (\textit{views, controllers})
+    \item Retornar respostas JSON padronizadas para os clientes ou outros serviços.
+\end{enumerate}
+Abaixo, apresenta-se a estrutura padrão de inicialização de um serviço no protótipo, exemplificada pelo serviço de produtos. Note o uso de \textit{Blueprints} para modularização de rotas e o \textit{CORS} para permitir requisições entre origens (necessário quando serviços rodam em portas diferentes ou interagem com \textit{frontends}).
+
+\begin{lstlisting}[language=Python, caption={Inicialização de um Serviço (produtos) com Flask}, label={lst:pyex}]
+from flask import Flask
+from routes.products import products_bp
+from database import init_db, db
+from flask_cors import CORS
+from telemetry import configure_telemetry
+
+app = Flask(__name__)
+app.secret_key = 'secret_key_products'
+
+CORS(app, supports_credentials=True)
+
+app.register_blueprint(products_bp)
+
+init_db(app)
+
+configure_telemetry(app, "products")
+
+if __name__ == "__main__":
+
+    app.run(host="0.0.0.0", port=5001, debug=True)
+\end{lstlisting}
+
+Para abstrair a complexidade das consultas SQL e garantir a independência de banco de dados (permitindo o uso de SQLite em desenvolvimento e PostgreSQL em produção sem alteração de código), utilizou-se o \textbf{SQLAlchemy}. Ele atua como um Mapeador Objeto-Relacional (ORM), traduzindo classes Python em tabelas de banco de dados.
+
+Cada microsserviço possui seus próprios modelos de dados, respeitando o padrão Database-per-Service. O código abaixo demonstra como a entidade \textbf{Product} é declarada, utilizando tipos de dados estritos (\texttt{Integer, String, Float}) para garantir a integridade do esquema.
+
+
+\begin{lstlisting}[language=Python, caption={Exemplo simples em Python}, label={lst:pyex}]
+from database import db
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    image_url = db.Column(db.Text, nullable=True)
+    stock = db.Column(db.Integer, nullable=False, default=0)
+\end{lstlisting}
+
+A gestão da conexão e a criação das tabelas são centralizadas em um módulo utilitário \texttt{database.py}, que configura o pool de conexões e parâmetros de \textit{timeout}, cruciais para evitar gargalos em sistemas concorrentes.
+
+\begin{lstlisting}[language=Python, caption={Exemplo simples em Python}, label={lst:pyex}]
+def init_db(app: Flask):
+
+    database_url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/meubanco')
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
+\end{lstlisting}
+
+A tecnologia mais crítica para este trabalho não é a que serve os dados, mas a que os observa. O \textbf{OpenTelemetry (OTel)} é o framework utilizado para a geração, coleta e exportação de dados de telemetria (traces).
+
+Diferente de sistemas legados que usam logs textuais não estruturados, o OTel permite a instrumentação automática. No \textit{MinimalBoutique}, foi criado um módulo padronizado (\texttt{telemetry.py}) importado por todos os serviços. Este módulo ``envolve'' (\textit{wraps}) a aplicação Flask e as chamadas HTTP (biblioteca \texttt{requests}), interceptando o tráfego para gerar spans automaticamente.
+
+\begin{lstlisting}[language=Python, caption={Exemplo simples em Python}, label={lst:pyex}]
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+def configure_telemetry(app: Flask, service_name: str):
+    resource = Resource(attributes={
+        "service.name": service_name,
+        "service.instance.id": os.uname().nodename,
+    })
+    
+    trace.set_tracer_provider(TracerProvider(resource=resource))
+    exporter = OTLPSpanExporter(endpoint="http://collector:4321/v1/traces")
+    
+    FlaskInstrumentor().instrument_app(app)       
+    RequestsInstrumentor().instrument()          
+    SQLAlchemyInstrumentor().instrument(engine=db.engine)
+\end{lstlisting}
+
+\subsection{Backend}
+Seguindo a estrutura modular proposta, vamos detalhar o serviço denominado \texttt{backend}. No contexto do \textit{Minimalboutique}, este contêiner desempenha um papel híbrido e centralizador: ele atua simultaneamente como o \textbf{API Gateway}(Ponto de entrada unificado) e o \textbf{Serviço de Autenticação}.
+Essa decisão arquitetural de co-localizar Gateway e Auth simplifica a gestão de sessões e cookies no protótipo, evitando a complexidade adicional de compartilhar estado de autenticação entre múltiplos contêineres de borda. Abaixo, detalho a implementação dessas duas responsabilidades.
+\begin{enumerate}
+    \item \textbf{Visão Geral do Serviço \texttt{backend}}: O serivço \texttt{backend} é o "porteiro" do sistema. Nenhum cliente externo comunica-se diretamente com os serviços de domínio. Todas as requisições passam por este serviço, que tem a responsabilidade de:
+    \begin{enumerate}
+        \item \textbf{Autenticar e Autorizar}: Verificar credenciais e gerenciar a sessão do usuário
+        \item \textbf{Roteamento (Proxy)}: Encaminhar requisições para os microserviços apropriados.
+    \end{enumerate}
+    \item \textbf{O Módulo de Autenticação}: A segurança e identidade são geridas localmente por este serviço. Utilizamos o \textbf{SQLAlchemy} para persistir as credenciais dos usuários e o mecanismo nativo de sessões do Flask (baseado em cookies assinados) para manter o estado do login.
+    Modelo de Dados (\texttt{User)} A entidade de usuário é minimalista, armazenando apenas o necessário para identificar o cliente nos traces.
+    \begin{lstlisting}[language=Python, caption={Modelo do usuário no banco de dados}, label={lst:pyex}]
+    class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    \end{lstlisting}
+    \item \textbf{O Módulo API Gateway (\texttt{gateway}}
+    Este é o componente que efetivamente realiza a orquestração de entrada. Diferente de um \textit{proxy} reverso genérico (como Nginx), este \textit{Gateway} é "inteligente" e programável em Python. Ele intercepta as requisições, verifica a sessão do usuário e, então, faz uma nova chamada HTTP síncrona para o microsserviço de destino.
+    \begin{lstlisting}[language=Python, caption={Roteamento do Gateway para um servico}, label={lst:pyex}]
+    ''' URLs dos servicos internos (Service Discovery via DNS do Docker/K8s)'''
+    ORDERS_API_URL = "http://orders:5002/orders/"
+    PRODUCTS_API_URL = "http://products:5001/products/"
+
+    @gateway_bp.route('/checkout/', methods=['POST'])
+    def checkout_gateway():
+    span = trace.get_current_span()
+    
+    ''' 1. Verificacao de Seguranca Centralizada'''
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Usuario nao autenticado"}), 401
+    span.set_attribute("user.id", user_id)
+
+    try:
+        ''' 2. Busca o carrinho do usuario (Chamada Sincrona ao Cart Service)'''
+        ''' Note o repasse de cookies para manter o contexto se necessario'''
+        cart_response = requests.get(CART_API_URL, params={'user_id': user_id}, cookies=request.cookies)
+        
+        cart_items = cart_response.json()
+        
+        ''' 3. Monta o payload e chama o servico de Checkout'''
+        payload = {
+            "user_id": user_id,
+            "cart_items": cart_items
+        }
+        checkout_response = requests.post(CHECKOUT_API_URL, json=payload, cookies=request.cookies)
+        
+        return checkout_response.content, checkout_response.status_code, checkout_response.headers.items()
+
+    except requests.exceptions.RequestException as e:
+        ''' Isolamento de erro: o Gateway captura falhas de rede dos servicos internos'''
+        return jsonify({"error": "Erro de comunicacao com os servicos", "details": str(e)}), 503
+    \end{lstlisting}
+    \item \textbf{Propagação de Contexto} Um detalhe fundamental ocorre na linha \textit{request.post(...)}. Graças a biblioteca \texttt{opentelemetry-instrumentation-requests} configurada em \texttt{telemetry.py}, essa chamada http injeta automaticamente um cabeçalho \texttt{traceparent}.
+
+    Isso garante que o span criado no \texttt{gateway} seja o pai do span que será criado nos serviços posteriores. Sem isso, teríamos vários traces desconexos em vez de um único trace distribuído coeso.
+\end{enumerate}
+
+\subsection{Products}
+O serviço \texttt{products} é responsável por manter o cadastro dos itens vendidos e gerenciar a disponibilidade em tempo real. Diferente de um catálogo estático simples , este serviço foi projetado para ser transacional. Possui seu próprio banco de dados e não compartilha essas tabelas com nenhum outro serviço.
+
+\begin{enumerate}
+    \item \textbf{Modelo de dados} A entidade \texttt{Product} é mapeada via SQLAlchemy. Um detalhe importante para o experimento é o campo stock. O monitoramento da variação deste campo (via traces de atualização) é o que permite identificar se o sistema está sob alta demanda.
+    \begin{lstlisting}[language=Python, caption={Modelo de dados dos produtos}, label={lst:pyex}]
+    from database import db
+
+    class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    image_url = db.Column(db.Text, nullable=True)
+    
+    ''' Campo critico para controle de concorrencia'''
+    stock = db.Column(db.Integer, nullable=False, default=0)
+    \end{lstlisting}
+    \item \textbf{Serviços Disponibilizados} O products expõe uma API REST consumida principalmente pelo Gateway (para exibição ao usuário), pelo Cart (para reserva temporária) e pelo Checkout/Orders (para baixa definitiva ou cancelamento).
+    \begin{enumerate}
+        \item \textbf{Consulta de catálogo (Read-Only)}: Estes são os endpoints com maior volume de tráfego, utilizados intensamente durante a fase de navegação do usuário.
+        \begin{itemize}
+            \item \texttt{GET /}: Retorna uma lista de todos os produtos com estoque. disponível
+            \item \texttt{GET /<id>}: Retorna detalhes de um produto específico.
+        \end{itemize}
+    \item \textbf{Gestão de inventário (Transacional)}: Estes são os endpoints críticos que implementam o padrão de \textbf{Reserva de Recursos} em sistemas distribuídos.
+        \begin{itemize}
+            \item \texttt{POST /<id>/reserve}: Chamado pelo serviço de Cart quando um usuário adiciona um item. Ele decrementa o estoque atomicamente. Se o estoque for insuficiente, retorna um código de erro.
+            \item \texttt{POST /<id>/release}: Chamado pelo serviço CART se o usuário remover um item ou pelo serviço Orders se um pedido foi cancelado ou falha no pagamento. Ele devolve o item ao estoque.
+        
+        \end{itemize}
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Cart}
+O serviço cart gerencia o estado transiente da intenção de compra. Ele foi projetado para simular um padrão de arquitetura muito comum: a dependência de dados externos. O carrinho armazena apenas referências (\texttt{product\_id}) e quantidades, mas não armazena o preço ou o nome do produto. Para exibir o carrinho ao usuário, ele precisa consultar o serviço de produtos em tempo real. 
+
+Para adicionar um item, o carrinho precisa \textit{conversar} com o serviço de produtos para reservar o estoque. Isso cria uma cadeia de dependência (Cart $\to$ Products) onde a latência do carrinho é diretamente impactada pela latência do catálogo. Para evitar chamar o serviço de produtos excessivamente durante a listagem (\texttt{GET /cart}), foi implementado um \textit{cache} em memória simples, que ajuda a diminuir o número de requisições necessárias para o produtos aumenta a eficiência do sistema, já que as requisições com \textit{cache hit} serão muito mais rápidas que requisições com \textit{cache miss}.
+
+O Modelo de dados é feito via SQLAlchemy, mas o modelo é intencionalmente exuto. Ele não duplica dados do catálogo, respeitando a normalização entre microsserviços.
+\begin{lstlisting}[language=Python, caption={Exemplo simples em Python}, label={lst:pyex}]
+from database import db
+
+class CartItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)    '''Referencia ao dono do carrinho'''
+    product_id = db.Column(db.Integer, nullable=False) ''' Referencia ao catalogo externo'''
+    quantity = db.Column(db.Integer, default=1)
+\end{lstlisting}
+
+Abaixo estão os serviços disponibilizados pelo módulo:
+\begin{enumerate}
+    \item \texttt{POST /}: Esta é a operação mais complexa do ponto de vista de rastreamento. Ao receber uma requisição, o serviço não grava no banco imediatamente. Primeiro ele tenta resolver no serviço de produtos, para verificar se aquele item com aquela quantidade está ainda disponível no estoque. Caso esteja ele reserva os itens e atualiza o banco local, caso contrário retorna mensagem de erro e não faz nenhuma alteração no banco
+    \item \texttt{GET /}: Ao recuperar o carrinho, o sistema precisa enriquecer os dados, fazendo uma solicitação ao products para recuperar as informações gerais dos itens. Ele busca os itens no banco local e verifica se o item se encontra na cache. Se não estiverem chama o serviço de produtos, então retorna o json completo com as informações do carrinho.
+    \item \texttt{DELETE /<item\_id>}: Remove um item específico e é crítico que chame o endpoint \texttt{/release} do serviço de produtos para devolver o estoque reservado.
+    \item \texttt{POST /clear}: Limpa todo o carrinho de um usuário, Utilizado pelo serviço de Pagamento após uma compra bem sucedida (neste caso, o estoque já foi consumido pela venda, então não é devolvido).
+\end{enumerate}
+
+\subsection{Checkout}
+Este serviço atua como um orquestrador de validação e preparação. Enquanto o cart acumula intenções e o orders persiste fatos, o checkout é o componente lógico que transforma a intenção do usuário de comprar em um contrato pendente na forma de pedido. O serviço de \texttt{checkout} é caracterizado por ser sem estado e sem banco de dados. Ele não possui memória própria e sua função é coordenar informações de outros serviços para compor uma transação válida. Ele recebe uma lista de itens (do gateway/carrinho) e precisa verificar o serviço de produtos, para garantir que o produto ainda esteja disponível e com os valores atualizados, garantindo que o usuário não pague um valor antigo armazenado na cache do carrinho.
+
+As responsabilidades primárias deste serviço é garantir a integridade financeira do pedido antes que ele seja criado. Ele implementa uma barreira de validação síncrona.
+\begin{itemize}
+    \item \textbf{Fluxo de execução}(\texttt{POST/}):
+    \begin{enumerate}
+        \item \textbf{Recepção}: Recebe os itens do carrinho enviados pelo Gateway.
+        \item \textbf{Validação de preços}: Para cada item consulta o serviço de produtos. Isso serve para confirmar se o produto ainda existe, obter o preço oficial evitando alterações nos preços gerem prejuízo para e empresa, calcular o subtotal e o total geral.
+        \item \textbf{Criação do Pedido}: Com os dados validados e o total calculado, ele submete uma requisição ao \texttt{orders-service} para criar o registro do pedido com o status \texttt{pending}.
+        \item \textbf{Retorno}: Devolve o ID do pedido para que o cliente possa proceder com o pagamento.
+    \end{enumerate}
+\end{itemize}
+\subsection{Payment}
+O serviço de \texttt{payment} simula uma gateway de pagamento externo e sua principal função arquitetura é atuar como um nó de retorno. Ele não apenas recebe uma requisição, mas dispara ativamente novas requisições para outros serviços para confirmar o sucesso da operação. O objetivo dele no experimento é simular latência e dar outro ponto de experimentação para o sistema. Uma chamada ao payment adiciona pelo menos mais dois nodos ao grafo de rastreamento, o que testa a capacidade doa gente de manter o contexto através de múltiplas camadas de serviço.
+
+O payment faz uma requisição para orders para validar o pedido e mudar o status para pago utilizando o endpoint \texttt{/confirm\_payment}, e limpa o carrinho do usuário através de uma chamada ao backend pelo endpoint \texttt{/cart/clear}.
+
+\begin{lstlisting}[language=Python, caption={Código do payment.py}, label={lst:pyex}]
+@payment_bp.route('/charge', methods=['POST'])
+def charge():
+    span = trace.get_current_span()
+    data = request.json
+    order_id = data.get('order_id')
+    user_id = data.get('user_id')
+
+    ''' ... validacoes ...'''
+    span.set_attribute("order.id", order_id)
+
+    ''' 1. Confirmacao do Pagamento (Atualiza status no Orders Service)'''
+    try:
+        confirm_url = f"{ORDERS_API_URL}/{order_id}/confirm_payment"
+        confirm_response = requests.post(confirm_url)
+
+        if confirm_response.status_code != 200:
+            '''  Ponto de Falha Critica: Pagou mas nao confirmou'''
+            span.set_attribute("payment.status", "declined")
+            return jsonify({"error": "Falha ao atualizar pedido"}), 500
+        
+        span.set_attribute("payment.status", "paid")
+    
+    except requests.exceptions.RequestException:
+        return jsonify({"error":"Erro de conexao com Orders"}), 503
+
+    ''' 2. Limpeza do Carrinho (Chamada ao Cart Service)'''
+    ''' Note que falhas aqui sao tratadas como "Avisos" (Soft Fail), nao erros fatais'''
+    try:
+        requests.post(CART_API_URL, json={'user_id': user_id}, cookies=request.cookies)
+    except requests.exceptions.RequestException as e:
+        print(f"Aviso: Nao foi possivel limpar o carrinho: {e}")
+    
+    return jsonify({"message": "Pagamento bem sucedido"}), 200
+\end{lstlisting}
+
+\subsection{Orders}
+O serviço de \texttt{orders} é um sistema de registro. Enquanto o carrinho é volátil e o checkout é efêmero, o serviço de pedidos persiste o histórico imutável das transações.
+\begin{lstlisting}[language=Python, caption={Tabelas do serviço de pedidos}, label={lst:pyex}]
+class Order(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    total = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pending') ''' pending -> paid'''
+    ''' Relacionamento 1:N com itens'''
+    items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
+
+class OrderItem(db.Model):
+    ''' ... chaves estrangeiras ...
+    product_id = db.Column(db.Integer, nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Float, nullable=False) ''' Preco congelado no momento da compra'''
+\end{lstlisting}
+Abaixo estão os serviços disponbilizados por esse módulo:
+\begin{enumerate}
+    \item \texttt{POST /}: Recebe os dados validados pelo \textit{Checkout}. Cria o pedido com status \texttt{pending}. É uma operação de escrita pura.
+    \item \texttt{POST /<id>/confirm\_payment}: Endpoint idempotente chamado pelo serviço de payment. Altera o status para \texttt{paid}.
+    \item \texttt{GET /}: Lista os pedidos do usuário. Aqui ocorre um padrão interessante de enriquecimento de dados. Como o serviço de pedidos armazena apenas o \texttt{product\_id}, ao lista o histórico para o usuário, ele precisa mostrar o \textit{nome} do produto, portanto para cada linha do histórico, o serviço de pedidos faz uma chamada ao serviço de produtos para obter o nome atualizado.
+\end{enumerate}
+
+\section{Implementação do Gerador de Carga}
+O componente responsável por estressar o sistema e gerar os dados de telemetria foi implementado utilizando o framework Locust, escrito em Python. O script de teste (\texttt{locustfile.py}) foi estruturado para simular uma sessão de usuário completa e não determinística, utilizando as seguintes bibliotecas e padrões de projeto:
+
+A classe principal \texttt{WebsiteUser} herda de \texttt{HttpUser}, servindo como o ponto de entrada para cada thread de usuário virtual instanciada. Ela define o comportamento temporal da simulação através do parâmetro wait\_time, configurado com a função \textit{between(2,10)}. Isso introduz um tempo de resposta (thinking time) aleatório entre 2 e 10 segundos entre cada requisição, garantindo que o tráfego gerado não seja constante (artificial), mas sim variável e em rajadas, mimetizando a interação humana real.
+
+A lógica comportamental é encapsulada na classe \texttt{UserBehavior}, que define as ações que o usuário pode realizar.
+\begin{itemize}
+    \item \textbf{Inicialização} (\texttt{on\_start}): Antes de iniciar as tarefas de compra, cada usuário executa um método de \textit{setup}. O script utiliza a biblioteca Faker para gerar credenciais fictícias (e-mail e senha) e realiza o registro e login no serviço de autenticação. O token JWT recebido no login é armazenado no cabeçalho da sessão (\texttt{self.client.headers}), garantindo que todas as requisições subsequentes sejam autenticadas e rastreáveis nos \textit{traces} do \textit{backend}.
+    \item \textbf{Preparação de Dados}: Ainda na inicialização, o usuário consulta a lista de produtos disponíveis (\texttt{fetch\_products\_ids}) e armazena os IDs em memória 
+    
+    (self.products\_ids). Isso permite que as ações futuras de "adicionar ao carrinho" utilizem IDs de produtos reais e válidos, evitando erros 404 triviais que não agregariam valor ao aprendizado do RADAR.
+\end{itemize}
+
+As interações do usuário são definidas como métodos decorados com \texttt{@task}, onde o argumento numérico define o peso (probabilidade) de execução. Isso cria um funil de conversão estatístico diretamente no código:
+\begin{itemize}
+    \item \textbf{Navegação (Peso 10)}: A tarefa \texttt{browse\_products} é a mais frequente, simulando a leitura de catálogo. Ela introduz variabilidade ao escolher aleatoriamente (\texttt{random.choice}) entre listar todos os produtos ou visualizar um item específico.
+    \item \textbf{Interação (Peso 5 e 3)}: As tarefas \texttt{add\_to\_cart} e \texttt{view\_cart} representam o interesse de compra. A quantidade de itens adicionados é gerada dinamicamente (\texttt{random.randint(1,3}), variando a carga útil (\textit{payload}) da requisição.
+    \item \textbf{Conversão (Peso 2)}: A tarefa crítica \texttt{checkout\_and\_pay} simula o fechamento do pedido. Diferente das outras, esta tarefa executa uma cadeia de requisições dependentes (Adicionar $\to$ \textit{Checkout} $\to$ Pagamento), gerando os traces mais longos e complexos do sistema, cruciais para o teste de \textit{Tail Sampling}.
+\end{itemize}
+
+
+Para garantir a qualidade da simulação, foi implementado um método auxiliar \texttt{check\_response}. Ele intercepta todas as respostas HTTP para validar o código de status esperado (ex: 200 ou 201).
+\begin{itemize}
+    \item Tratamento de Falhas: Se o backend retornar um erro inesperado (ex: 500), o script registra o evento como uma falha no Locust e, dependendo da gravidade, interrompe e reinicia o usuário virtual (\texttt{self.interrupt}).
+    \item Segurança de Execução: Um decorador personalizado \texttt{@safe\_task} envolve as tarefas em blocos \textit{try-except}, prevenindo que exceções não tratadas (como falhas de conexão de rede) derrubem o processo do gerador de carga, mantendo o experimento estável por longos períodos.
+\end{itemize}
+
+

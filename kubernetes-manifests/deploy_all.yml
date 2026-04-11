@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: products
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   replicas: 3
   selector:
@@ -47,7 +47,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: products
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: products
@@ -61,7 +61,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   replicas: 1
   selector:
@@ -108,7 +108,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: backend
@@ -122,7 +122,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cart 
-  namespace: rmalves 
+  namespace: minimal-boutique 
 spec:
   replicas: 1
   selector:
@@ -165,7 +165,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: cart
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: cart
@@ -180,7 +180,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: payment
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   replicas: 1
   selector:
@@ -203,7 +203,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: payment
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: payment
@@ -218,7 +218,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: orders
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   replicas: 1
   selector:
@@ -263,7 +263,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: orders
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: orders
@@ -278,7 +278,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: checkout
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   replicas: 1
   selector:
@@ -301,7 +301,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: checkout
-  namespace: rmalves
+  namespace: minimal-boutique
 spec:
   selector:
     app: checkout
