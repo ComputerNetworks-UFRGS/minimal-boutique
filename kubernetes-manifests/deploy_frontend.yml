@@ -16,7 +16,7 @@ spec:
       # nodeName: petshopboys
       containers:
         - name: frontend
-          image: momosuke07/frontend:latest
+          image: ghcr.io/computernetworks-ufrgs/minimal-boutique-frontend
           ports:
             - containerPort: 5173
           command: ["npm", "run", "dev", "--", "--host"]

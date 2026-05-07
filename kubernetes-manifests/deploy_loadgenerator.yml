@@ -16,9 +16,18 @@ spec:
       # nodeName: petshopboys
       containers:
         - name: loadgenerator
-          image: momosuke07/loadgenerator:latest
+          image: ghcr.io/computernetworks-ufrgs/minimal-boutique-loadgenerator
           ports:
             - containerPort: 5009
+          command:
+            - locust
+            - '--host'
+            - http://backend.minimal-boutique.svc.cluster.local:5000
+            - '--headless'
+            - '-u'
+            - '100'
+            - '-r'
+            - '10'
 
 ---
 

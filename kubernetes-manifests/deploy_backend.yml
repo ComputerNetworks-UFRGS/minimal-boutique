@@ -18,7 +18,7 @@ spec:
         
         # Container da aplicação Flask
         - name: backend
-          image: momosuke07/backend:latest
+          image: ghcr.io/computernetworks-ufrgs/minimal-boutique-backend
           ports:
             - containerPort: 5000
           env:

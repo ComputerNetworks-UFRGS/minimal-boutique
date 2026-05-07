@@ -16,7 +16,7 @@ spec:
       # nodeName: petshopboys
       containers:
         - name: cart
-          image: momosuke07/cart:latest 
+          image: ghcr.io/computernetworks-ufrgs/minimal-boutique-cart 
           ports:
             - containerPort: 5005
           env:

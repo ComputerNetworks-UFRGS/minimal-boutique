@@ -16,7 +16,7 @@ spec:
       # nodeName: petshopboys
       containers:
         - name: checkout
-          image: momosuke07/checkout:latest
+          image: ghcr.io/computernetworks-ufrgs/minimal-boutique-checkout
           ports:
             - containerPort: 5003
 

@@ -16,7 +16,7 @@ spec:
       # nodeName: petshopboys
       containers:
         - name: payment
-          image: momosuke07/payment:latest
+          image: ghcr.io/computernetworks-ufrgs/minimal-boutique-payment
           ports:
             - containerPort: 5004
 

@@ -16,7 +16,7 @@ spec:
       # nodeName: petshopboys
       containers:
         - name: products    # <-- nome do container
-          image: momosuke07/products:latest
+          image: ghcr.io/computernetworks-ufrgs/minimal-boutique-products
           ports:
             - containerPort: 5001
           env:
