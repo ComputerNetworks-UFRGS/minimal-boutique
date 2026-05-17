@@ -5,6 +5,9 @@ import requests
 from opentelemetry import trace
 import datetime
 from sqlalchemy.orm import joinedload
+import multiprocessing
+import math
+import threading
 
 tracer = trace.get_tracer(__name__)
 
@@ -93,6 +96,10 @@ def create_order():
 # ===============================================================
 # GET ORDERS (agora com cache item a item)
 # ===============================================================
+
+# ===============================================================
+# Gera um spike de CPU quando chamado
+# ===============================================================
 @orders_bp.route('/', methods=['GET'])
 def get_orders():
     span = trace.get_current_span()
@@ -101,6 +108,8 @@ def get_orders():
     if not user_id:
         return jsonify({'error': 'user_id é obrigatório'}), 400
     span.set_attribute("user.id", user_id)
+
+    spike_started = start_cpu_spike()
 
     # Parâmetros opcionais de paginação (default: últimos 20)
     limit = int(request.args.get('limit', 20))
@@ -155,6 +164,48 @@ def get_orders():
     span.set_attribute("cache.misses", cache_misses)
 
     return jsonify(result)
+
+
+# ===============================================================
+# CPU SPIKE HELPERS
+# ===============================================================
+
+cpu_spike_processes = []
+CPU_SPIKE_DURATION_SECONDS = 0.2
+
+
+def cpu_stress_test():
+    while True:
+        math.sqrt(64**64)
+
+
+def stop_cpu_spike():
+    global cpu_spike_processes
+    for p in cpu_spike_processes:
+        if p.is_alive():
+            p.terminate()
+    cpu_spike_processes = []
+
+
+def start_cpu_spike(duration=CPU_SPIKE_DURATION_SECONDS):
+    global cpu_spike_processes
+
+    # Already running? Don't start a second spike concurrently.
+    if any(p.is_alive() for p in cpu_spike_processes):
+        return False
+
+    # cores = multiprocessing.cpu_count() / 4
+    cores = 3
+    for _ in range(int(cores)):
+        p = multiprocessing.Process(target=cpu_stress_test)
+        p.daemon = True
+        p.start()
+        cpu_spike_processes.append(p)
+
+    timer = threading.Timer(duration, stop_cpu_spike)
+    timer.daemon = True
+    timer.start()
+    return True
 
 
 # ===============================================================
