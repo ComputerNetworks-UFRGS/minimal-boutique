@@ -5,6 +5,9 @@ from opentelemetry import trace
 
 tracer = trace.get_tracer(__name__)
 
+# Para gerar um uso de ram aumenta com o tempo
+last_products = []
+
 
 products_bp = Blueprint('products', __name__, url_prefix = '/products')
 #Rotas de dados de produtos
@@ -13,6 +16,17 @@ def list_products():
     span = trace.get_current_span()
     products = Product.query.filter(Product.stock>0).all()
     span.set_attribute("number.of.products", len(products))
+    for _ in range(1000):
+        last_products.append(
+            {
+            "id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "description": p.description,
+            "image_url": p.image_url,
+            "stock": p.stock
+            } for p in products
+        )
     return jsonify([{
         "id": p.id,
         "name": p.name,
@@ -29,6 +43,17 @@ def get_product(product_id):
     if product is None:
         return jsonify({'error': 'Produto não encontrado'}), 404
     span.set_attribute("product.id", product.id)
+    for _ in range(1000):
+        last_products.append(
+            {
+            "id": product.id,
+            "name": product.name,
+            "price": product.price,
+            "description": product.description,
+            "image_url": product.image_url,
+            "stock": product.stock
+        }
+        )
     return jsonify({
         "id": product.id,
         "name": product.name,
