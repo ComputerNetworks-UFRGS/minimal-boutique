@@ -8,7 +8,7 @@ import os
 
 
 def traces_provider(resource):
-    traces_endpoint = os.getenv("TRACES_ENDPOINT", "http://collector:4321/v1/traces")
+    traces_endpoint = os.getenv("OTLP_ENDPOINT", "http://collector:4321/v1/traces")
 
     provider = TracerProvider(resource=resource, sampler=TraceIdRationBased(1.0))
     processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_endpoint))

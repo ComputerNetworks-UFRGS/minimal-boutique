@@ -30,7 +30,7 @@ def configure_telemetry(app: Flask, service_name: str):
     http_session.mount("https://", adapter)
 
     exporter = OTLPSpanExporter(
-        endpoint="http://collector:4321/v1/traces",
+        endpoint=os.getenv("OTLP_ENDPOINT", "http://collector:4321/v1/traces"),
         session=http_session
     )
 

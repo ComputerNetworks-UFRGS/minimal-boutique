@@ -84,7 +84,7 @@ def configure_telemetry(app: Flask, service_name: str):
     })
     
     trace.set_tracer_provider(TracerProvider(resource=resource))
-    exporter = OTLPSpanExporter(endpoint="http://collector:4321/v1/traces")
+    exporter = OTLPSpanExporter(endpoint=os.getenv("OTLP_ENDPOINT", "http://collector:4321/v1/traces"))
     
     FlaskInstrumentor().instrument_app(app)       
     RequestsInstrumentor().instrument()          

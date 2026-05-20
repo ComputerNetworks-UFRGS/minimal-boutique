@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: jaeger
-  namespace: minimal-boutique
+  namespace: mcp-hub
   labels:
     app: jaeger
 spec:
@@ -28,13 +28,13 @@ spec:
             - name: SPAN_STORAGE_TYPE
               value: "elasticsearch"
             - name: ES_SERVER_URLS
-              value: "http://elasticsearch:9200"
+              value: "http://elasticsearch.mcp-hub.svc.cluster.local:9200"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: jaeger
-  namespace: minimal-boutique
+  namespace: mcp-hub
 spec:
   selector:
     app: jaeger

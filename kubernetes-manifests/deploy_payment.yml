@@ -19,6 +19,9 @@ spec:
           image: ghcr.io/computernetworks-ufrgs/minimal-boutique-payment
           ports:
             - containerPort: 5004
+          env:
+            - name: OTLP_ENDPOINT
+              value: "http://collector.mcp-hub.svc.cluster.local:4321/v1/traces"
 
 ---
 

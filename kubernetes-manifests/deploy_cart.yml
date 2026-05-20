@@ -22,6 +22,8 @@ spec:
           env:
             - name: DATABASE_URL
               value: postgresql://postgres:postgres@localhost:5432/meubanco
+            - name: OTLP_ENDPOINT
+              value: "http://collector.mcp-hub.svc.cluster.local:4321/v1/traces"
         - name: postgres
           image: postgres:16
           ports:
