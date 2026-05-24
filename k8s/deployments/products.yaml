@@ -24,11 +24,7 @@ spec:
           value: app
         - name: FLASK_ENV
           value: production
-        - name: FLASK_RUN_HOST
-          value: 0.0.0.0
-        - name: FLASK_RUN_PORT
-          value: "5001"
-        command: ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5001", "app:app"]
+        command: ["gunicorn","--workers","4","--bind","0.0.0.0:5001","app:app"]
         resources:
           limits:
             memory: "256Mi"
