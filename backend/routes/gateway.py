@@ -6,10 +6,10 @@ gateway_bp = Blueprint('gateway', __name__)
 
 # Correct service URLs – use the actual Kubernetes DNS names
 ORDERS_API_URL = "http://orders:5002/orders/"
-PRODUCTS_API_URL = "http://products:5001/products/"
+PRODUCTS_API_URL = "http://prod456:5001/products/"
 CHECKOUT_API_URL = "http://checkout:5003/checkout/"
 PAYMENT_API_URL = "http://payment:5004/payment/"
-CART_API_URL = "http://cart:5005/cart/"
+CART_API_URL = "http://carxyz:5005/cart/"
 
 tracer = trace.get_tracer(__name__)
 
