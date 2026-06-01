@@ -58,6 +58,7 @@ def fetch_product(product_id):
 # ===============================================================
 @orders_bp.route('/', methods=['POST'])
 def create_order():
+    return jsonify({'error': 'Erro na criação do pedido'}), 400
     span = trace.get_current_span()
 
     data = request.json
