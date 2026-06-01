@@ -12,6 +12,7 @@ tracer =  trace.get_tracer(__name__)
 
 @payment_bp.route('/charge', methods=['POST'])
 def charge():
+    raise Exception("Erro durante o pagamento")
 
     span = trace.get_current_span()
     data = request.json
